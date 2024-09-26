@@ -17,12 +17,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      # Step 2: Set up Java environment
-      - name: Set up JDK 11
+      # Step 2: Set up Java environment (Java 21, Amazon Corretto)
+      - name: Set up JDK 21
         uses: actions/setup-java@v3
         with:
-          distribution: 'adopt'
-          java-version: '11'
+          distribution: 'corretto'
+          java-version: '21'
 
       # Step 3: Create a new branch
       - name: Create New Branch
@@ -75,10 +75,7 @@ jobs:
           languages: java
 
       - name: Perform CodeQL Analysis
-        run: |
-          git checkout dynamic-vars-tasks
-          ./gradlew assemble --scan
-          github/codeql-action/analyze
+        uses: github/codeql-action/analyze@v2
 
   # Step 9: Merge PR to main branch
   merge_pr:
@@ -90,6 +87,9 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Merge PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Automatically approve and merge the PR
           gh pr merge --squash --admin dynamic-vars-tasks --repo ${{ github.repository }}
+
