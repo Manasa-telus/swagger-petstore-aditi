@@ -5,7 +5,7 @@
 
     <groupId>com.example</groupId>
     <artifactId>swagger-pet-store</artifactId>
-    <version>1.0.0-SNAPSHOT</version> <!-- Updated to SNAPSHOT -->
+    <version>1.0.1-SNAPSHOT</version> <!-- Updated to SNAPSHOT -->
     <packaging>jar</packaging>
 
     <properties>
@@ -16,17 +16,17 @@
         <dependency>
             <groupId>io.swagger</groupId>
             <artifactId>swagger-annotations</artifactId>
-            <version>1.6.2</version>
+            <version>1.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-            <version>2.5.6</version>
+            <version>1.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
-            <version>2.5.6</version>
+            <version>1.0.1-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -36,7 +36,7 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>2.5.6</version>
+                <version>1.0.1-SNAPSHOT</version>
                 <executions>
                     <execution>
                         <goals>
@@ -49,7 +49,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>1.0.1-SNAPSHOT</version>
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
@@ -59,7 +59,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.2</version>
+                <version>1.0.1-SNAPSHOT</version>
             </plugin>
 
         </plugins>
