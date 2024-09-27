@@ -1,68 +1,70 @@
-name: Dynamic Vars Tasks Workflow
+name: Build and PR with CodeQL Scan/Update
 
-# Trigger the workflow manually
 on:
+  pull_request:
+    branches: 
+      - master
   workflow_dispatch:
     inputs:
-      SNAPSHOT_VERSION:
-        description: 'Enter the SNAPSHOT build version (e.g., 1.0.0-SNAPSHOT)'
+      version:
+        description: 'Snapshot build version'
         required: true
-        type: string
 
 jobs:
-  build:
+  update-pom:
     runs-on: ubuntu-latest
-
     steps:
-      # Step 1: Checkout the repository
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v3
-        with:
-          # Ensure you fetch all branches and history
-          fetch-depth: 0
 
-      # Step 2: Set up Git configuration
-      - name: Set up Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      # Step 3: Create and switch to the new branch
-      - name: Create New Branch
-        run: |
-          git checkout -b dynamic-vars-tasks
-
-      # Step 4: Update POM.xml with the new SNAPSHOT version
-      - name: Update POM.xml Version
-        run: |
-          mvn versions:set -DnewVersion=${{ github.event.inputs.SNAPSHOT_VERSION }} -DgenerateBackupPoms=false
-        env:
-          MAVEN_OPTS: "-Dmaven.repo.local=$HOME/.m2/repository"
-
-      # Optional: Verify the POM.xml has been updated (for debugging)
-      - name: Verify POM.xml Update
-        run: |
-          grep "<version>${{ github.event.inputs.SNAPSHOT_VERSION }}</version>" pom.xml
-
-      # Step 5: Commit the changes
-      - name: Commit Changes
-        run: |
-          git add pom.xml
-          git commit -m "Update POM.xml to version ${{ github.event.inputs.SNAPSHOT_VERSION }}"
-
-      # Step 6: Push the new branch to the repository
-      - name: Push Branch
-        uses: ad-m/github-push-action@v0.6.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: dynamic-vars-tasks
-
-      # Step 7: Perform Maven Build
-      - name: Set up JDK 17
+      - name: Set up Java
         uses: actions/setup-java@v3
         with:
-          distribution: 'adopt'
-          java-version: '17'
+          distribution: 'temurin'
+          java-version: '11'
 
       - name: Build with Maven
         run: mvn clean install
+
+      - name: Configure Git user
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Update version for swagger-petstore in pom.xml
+        run: |
+          sed -i -E '/<artifactId>swagger-petstore<\/artifactId>/,/<\/version>/ s|<version>[0-9.]*</version>|<version>${{ github.event.inputs.version }}</version>|' pom.xml
+
+      - name: Commit and push version change
+        run: |
+          git add pom.xml
+          git commit -m "Update version to ${{ github.event.inputs.version }}"
+          git push origin master
+
+  codeql-scan:
+    needs: update-pom
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: java
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v2
+
+  merge-pr:
+    needs: codeql-scan
+    runs-on: ubuntu-latest
+    if: ${{ success() }}
+    steps:
+      - name: Merge Pull Request
+        run: |
+          gh pr merge update-version-${{ github.event.inputs.version }} --merge
