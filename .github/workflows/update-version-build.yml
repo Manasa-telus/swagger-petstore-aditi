@@ -1,62 +1,26 @@
-name: Update Version and Build
+name: Dynamic Vars Tasks  
+  
+on:  
+  workflow_dispatch:  
+   inputs:  
+    SNAPSHOT_BUILD_VERSION:  
+      description: 'Snapshot build version'  
+      required: true  
+  
+jobs:  
+  build-and-deploy:  
+   runs-on: ubuntu-latest  
+   steps:  
+    - name: Checkout code  
+      uses: actions/checkout@v2  
+    - name: Set snapshot build version  
+      run: |  
+       echo "SNAPSHOT_BUILD_VERSION=${SNAPSHOT_BUILD_VERSION}" >> $GITHUB_ENV  
+    - name: Build and deploy  
+      run: |  
+       # Your build and deploy commands go here  
+       # For example:  
+       # npm install  
+       # npm run build  
+       # npm run deploy
 
-on:
-  workflow_dispatch:
-    inputs:
-      snapshot_version:
-        description: 'SNAPSHOT build version (e.g., 1.0.0)'
-        required: true
-        type: string
-
-jobs:
-  create_branch_and_build:
-    runs-on: ubuntu-latest
-
-    steps:
-      # Step 1: Checkout the repository
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0  # Ensures the full history is fetched
-
-      # Step 2: Set up JDK 17
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'adopt'
-
-      # Step 3: Create a new branch
-      - name: Create new branch
-        run: |
-          git checkout -b dynamic-vars-tasks
-
-      # Step 4: Update POM.xml with the snapshot version
-      - name: Update POM.xml with snapshot version
-        run: |
-          mvn versions:set -DnewVersion=${{ github.event.inputs.snapshot_version }}-SNAPSHOT
-          mvn versions:commit
-
-      # Step 5: Build the project
-      - name: Build the project
-        run: |
-          mvn clean install
-
-      # Step 6: Push changes to the new branch
-      - name: Push changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git push origin dynamic-vars-tasks
-
-      # Step 7: Create a Pull Request
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: dynamic-vars-tasks
-          title: "Update to version ${{ github.event.inputs.snapshot_version }}-SNAPSHOT"
-          body: |
-            This PR updates the `POM.xml` to version `${{ github.event.inputs.snapshot_version }}-SNAPSHOT`.
-          base: main
-          commit-message: "Update POM.xml to version ${{ github.event.inputs.snapshot_version }}-SNAPSHOT"
