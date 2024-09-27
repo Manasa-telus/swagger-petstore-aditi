@@ -1,70 +1,132 @@
 name: Build and PR with CodeQL Scan/Update
 
 on:
-  pull_request:
-    branches: 
-      - master
   workflow_dispatch:
     inputs:
       version:
-        description: 'Snapshot build version'
+        description: 'Snapshot build version (e.g., 1.0.1-SNAPSHOT)'
         required: true
+        type: string
 
 jobs:
   update-pom:
     runs-on: ubuntu-latest
     steps:
+      # Step 1: Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Necessary for creating branches
 
+      # Step 2: Set up Java
       - name: Set up Java
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '11'
 
+      # Step 3: Build with Maven to ensure current state is good
       - name: Build with Maven
-        run: mvn clean install
+        run: mvn clean install --batch-mode
 
+      # Step 4: Configure Git user
       - name: Configure Git user
         run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
 
-      - name: Update version for swagger-petstore in pom.xml
+      # Step 5: Create a new branch for version update
+      - name: Create new branch
         run: |
-          sed -i -E '/<artifactId>swagger-petstore<\/artifactId>/,/<\/version>/ s|<version>[0-9.]*</version>|<version>${{ github.event.inputs.version }}</version>|' pom.xml
+          BRANCH_NAME=update-version-${{ github.event.inputs.version }}
+          git checkout -b $BRANCH_NAME
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
-      - name: Commit and push version change
+      # Step 6: Update version in pom.xml using Maven Versions Plugin
+      - name: Update version in pom.xml
         run: |
+          mvn versions:set -DnewVersion=${{ github.event.inputs.version }} -DgenerateBackupPoms=false
           git add pom.xml
           git commit -m "Update version to ${{ github.event.inputs.version }}"
-          git push origin master
+      
+      # Step 7: Push the new branch to the repository
+      - name: Push changes to new branch
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.BRANCH_NAME }}
+
+      # Step 8: Create a Pull Request
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.BRANCH_NAME }}
+          title: "Update version to ${{ github.event.inputs.version }}"
+          body: "This PR updates the project version to `${{ github.event.inputs.version }}`."
+          labels: "automation"
+          reviewers: "your-reviewer-username"  # Optional: Assign reviewers
+          # You can add more options as needed
 
   codeql-scan:
     needs: update-pom
+    runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
       security-events: write
-    runs-on: ubuntu-latest
     steps:
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # Step 2: Initialize CodeQL
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
           languages: java
+
+      # Step 3: Perform CodeQL analysis
+        # Optionally, you can specify additional CodeQL options here
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v2
 
   merge-pr:
     needs: codeql-scan
+    if: ${{ github.event_name == 'workflow_dispatch' && success() }}
     runs-on: ubuntu-latest
-    if: ${{ success() }}
     steps:
+      # Step 1: Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 2: Set up GitHub CLI
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key C99B11DEB97541F0
+          sudo apt-add-repository https://cli.github.com/packages
+          sudo apt update
+          sudo apt install gh -y
+
+      # Step 3: Authenticate GitHub CLI
+      - name: Authenticate GitHub CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "${GITHUB_TOKEN}" | gh auth login --with-token
+
+      # Step 4: Merge the Pull Request
       - name: Merge Pull Request
         run: |
-          gh pr merge update-version-${{ github.event.inputs.version }} --merge
+          PR_TITLE="Update version to ${{ github.event.inputs.version }}"
+          PR_NUMBER=$(gh pr list --title "$PR_TITLE" --json number --jq '.[0].number')
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No PR found with title '$PR_TITLE'. Exiting."
+            exit 1
+          fi
+
+          gh pr merge $PR_NUMBER --merge --admin --auto --delete-branch
+
+
